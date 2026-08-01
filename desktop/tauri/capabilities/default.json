@@ -1,0 +1,6 @@
+{
+  "identifier": "com.trademirror.desktop",
+  "description": "Default permissions for TradeMirror",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:default"]
+}

@@ -1,0 +1,20 @@
+def build_prompt(manifest: dict, profile: dict, statistics: dict) -> str:
+    return f"""# TradeMirror 历史交易复盘请求
+
+请仅基于本 TMF 归档中的历史数据完成复盘，不预测未来市场，不提供下单、仓位或交易指令。
+
+- 交易数：{statistics['trade_count']}
+- 数据来源：{manifest.get('source') or '、'.join(manifest.get('sources', [])) or '未标注'}
+- 覆盖品种：{'、'.join(manifest.get('symbols', [])) or '未标注'}
+- 导出是否脱敏：{'是' if manifest['options']['redact_source_identity'] else '否'}
+- 交易风格：{profile['style']}
+- 净盈亏：{statistics['net_profit']}
+
+请输出：
+1. 数据覆盖和局限性；
+2. 可重复出现的执行、风险与市场环境模式；
+3. 有证据支持的优点与改进点；
+4. 不确定项和需要补充的数据。
+
+K线及 MFE/MAE 来自 OHLC 区间近似；没有上下文的交易不得被推断为不存在或失败。
+"""

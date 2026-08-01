@@ -1,0 +1,29 @@
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# JavaScript dependencies and build artifacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Tauri and Rust artifacts
+desktop/tauri/target/
+
+# Local TradeMirror runtime data
+.trademirror/
+*.db
+*.db-journal
+*.log
+
+# IDE files
+.idea/
+.vscode/
+doc/
+
+# OS files
+.DS_Store
+Thumbs.db
