@@ -55,22 +55,22 @@ TradeMirror 是一款面向交易复盘的本地桌面软件。它将已平仓�
 
 ![交易过程叙事页面 / Trading Narrative page](md_img/narrative.png)
 
-在所选时间范围内，将交易与同一时期的 K 线市场阶段组合为连续、可复制的交易过程描述。  
+在所选时间范围内，将交易与同一时期的 K 线市场阶段组合为连续、可复制的交易过程描述。
 Combines selected trades and candle-market phases into a chronological, copyable account of the trading process.
 
 #### 交易概览 / Trading Overview
 
 ![交易概览页面 / Trading Overview page](md_img/overview.png)
 
-在本地汇总交易数量、净利润、胜率、盈亏比、最长连亏和已完成复盘，并展示净利润曲线与品种分布。  
+在本地汇总交易数量、净利润、胜率、盈亏比、最长连亏和已完成复盘，并展示净利润曲线与品种分布。
 Summarizes local trade performance—including trade count, net profit, win rate, profit factor, losing streaks, completed reviews, equity curve, and symbol distribution.
 
 #### TMF 导出 / TMF Export
 
 ![TMF 导出页面 / TMF Export page](md_img/trade.png)
 
-按品种、来源、方向和日期筛选交易，并选择是否导出图表及脱敏订单与来源标识。  
-Filter trades by symbol, source, direction, and date, then choose chart inclusion and order/source-identity redaction.
+导出的TMF文件可以上传给AI进行交易分析，它按品种、来源、方向和日期筛选交易，并选择是否导出图表及脱敏订单与来源标识。
+Exported TMF files can be uploaded to AI for trading analysis. It filters trades by symbol, source, direction, and date, while allowing you to choose whether to include charts, anonymized orders, and source identifiers.
 
 ### 日常使用
 
