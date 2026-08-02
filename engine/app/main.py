@@ -14,18 +14,24 @@ from app.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.database.session import create_database_engine
 
-ENGINE_VERSION = "0.1.0"
+ENGINE_VERSION = "1.0.0"
 logger = logging.getLogger(__name__)
 
 
 def create_app(settings: Settings) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
+        settings.database_path.parent.mkdir(parents=True, exist_ok=True)
+        settings.tmf_dir.mkdir(parents=True, exist_ok=True)
+        settings.import_preview_dir.mkdir(parents=True, exist_ok=True)
+        settings.cache_dir.mkdir(parents=True, exist_ok=True)
         configure_logging(settings.log_dir)
         app.state.database = create_database_engine(settings.database_path)
         app.state.data_dir = settings.data_dir
-        app.state.import_temp_dir = settings.data_dir / "import-previews"
-        logger.info("TradeMirror engine started")
+        app.state.tmf_dir = settings.tmf_dir
+        app.state.import_temp_dir = settings.import_preview_dir
+        logger.info("TradeMirror engine started on 127.0.0.1:%s", settings.port)
         yield
         app.state.database.dispose()
         logger.info("TradeMirror engine stopped")
@@ -37,7 +43,7 @@ def create_app(settings: Settings) -> FastAPI:
     )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:1420", "tauri://localhost"],
+        allow_origins=["http://localhost:1420", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"],
         allow_credentials=False,
         allow_methods=["GET", "POST"],
         allow_headers=["X-TradeMirror-Token"],
@@ -57,7 +63,13 @@ def create_app(settings: Settings) -> FastAPI:
 
 def run() -> None:
     settings = get_settings()
-    uvicorn.run(create_app(settings), host=settings.host, port=settings.port)
+    uvicorn.run(
+        create_app(settings),
+        host=settings.host,
+        port=settings.port,
+        log_config=None,
+        access_log=False,
+    )
 
 
 app = create_app(

@@ -11,14 +11,14 @@ router = APIRouter(prefix="/exports", tags=["exports"], dependencies=[Depends(re
 @router.post("/tmf", response_model=TmfExportResponse)
 def create_tmf(request: Request, payload: TmfExportRequest) -> TmfExportResponse:
     try:
-        return TmfExportService(request.app.state.database, request.app.state.data_dir).create(payload)
+        return TmfExportService(request.app.state.database, request.app.state.tmf_dir).create(payload)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.get("/{export_id}/download")
 def download_tmf(request: Request, export_id: str):
-    path = TmfExportService(request.app.state.database, request.app.state.data_dir).path_for(export_id)
+    path = TmfExportService(request.app.state.database, request.app.state.tmf_dir).path_for(export_id)
     if not path:
         raise HTTPException(status_code=404, detail="未找到导出文件。")
     return FileResponse(path, media_type="application/zip", filename=f"{export_id}.tmf")

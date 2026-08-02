@@ -3870,12 +3870,13 @@ dependencies = [
 
 [[package]]
 name = "trademirror-desktop"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "rand 0.8.7",
  "reqwest 0.12.28",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

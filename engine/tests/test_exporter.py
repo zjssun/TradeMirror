@@ -32,8 +32,9 @@ def test_tmf_validator_accepts_generated_archive(tmp_path: Path) -> None:
         session.add(Trade(import_batch_id=batch.id, ticket="1", symbol="EURUSD", direction="BUY", open_time=datetime(2025, 1, 1, tzinfo=UTC), close_time=datetime(2025, 1, 1, 1, tzinfo=UTC), open_price=1.1, close_price=1.2, volume=0.1, profit=10, commission=0, swap=0, net_profit=10, source_fingerprint="test"))
         session.commit()
     from app.schemas.export import TmfExportRequest
-    output = TmfExportService(engine, tmp_path).create(TmfExportRequest(trade_ids=[1], include_charts=True))
-    path = tmp_path / "exports" / f"{output['export_id']}.tmf"
+    tmf_dir = tmp_path / "tmf"
+    output = TmfExportService(engine, tmf_dir).create(TmfExportRequest(trade_ids=[1], include_charts=True))
+    path = tmf_dir / f"{output['export_id']}.tmf"
 
     assert validate_tmf(path)["passed"] is True
     with zipfile.ZipFile(path) as archive:

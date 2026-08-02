@@ -22,6 +22,15 @@
 
 ---
 
+## 下载 / Download
+
+### Windows 免安装绿色版 / Windows Portable Edition
+
+从 [GitHub Releases](https://github.com/zjssun/TradeMirror/releases) 下载最新的 `TradeMirror_Portable_v*.zip`，解压后双击 `TradeMirror.exe` 即可启动。无需安装 Python、Node.js、npm、pip 或数据库。  
+Download the latest `TradeMirror_Portable_v*.zip` from [GitHub Releases](https://github.com/zjssun/TradeMirror/releases), extract it, and launch `TradeMirror.exe`. Python, Node.js, npm, pip, and a separate database installation are not required.
+
+---
+
 ## 中文
 
 ### TradeMirror 是什么？
@@ -219,6 +228,27 @@ The default development URL is `http://localhost:1420`.
 ```bash
 cd desktop/tauri
 cargo tauri dev
+```
+
+#### Build the Windows portable edition
+
+On a Windows x64 release machine with Python 3.12+, Node.js, Rust, and the Tauri CLI:
+
+```bat
+scripts\package_portable.bat
+```
+
+This creates `dist\TradeMirror_Portable_v1.0.zip` and its SHA-256 checksum. End users only extract the ZIP and run `TradeMirror.exe`; they do not need Python, Node.js, npm, pip, or a separately installed database. WebView2 is required by Tauri and is normally present on Windows 10/11.
+
+Runtime data is deliberately outside the extracted directory:
+
+```text
+%APPDATA%\TradeMirror\
+├── database\trademirror.db
+├── tmf\
+├── cache\
+├── import-previews\
+└── logs\engine\engine.log
 ```
 
 #### Verify tests and builds

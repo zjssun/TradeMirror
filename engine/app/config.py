@@ -15,7 +15,19 @@ class Settings:
 
     @property
     def database_path(self) -> Path:
-        return self.data_dir / "trademirror.db"
+        return self.data_dir / "database" / "trademirror.db"
+
+    @property
+    def tmf_dir(self) -> Path:
+        return self.data_dir / "tmf"
+
+    @property
+    def import_preview_dir(self) -> Path:
+        return self.data_dir / "import-previews"
+
+    @property
+    def cache_dir(self) -> Path:
+        return self.data_dir / "cache"
 
 
 def _required_environment(name: str) -> str:

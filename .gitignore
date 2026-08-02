@@ -13,6 +13,11 @@ frontend/dist/
 # Tauri and Rust artifacts
 desktop/tauri/target/
 
+# Release packaging artifacts
+release/build/
+release/TradeMirror/
+dist/
+
 # Local TradeMirror runtime data
 .trademirror/
 *.db

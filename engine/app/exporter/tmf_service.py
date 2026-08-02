@@ -25,9 +25,9 @@ from app.schemas.narrative import TradingNarrativeRequest
 
 
 class TmfExportService:
-    def __init__(self, database: Engine, data_dir: Path) -> None:
+    def __init__(self, database: Engine, tmf_dir: Path) -> None:
         self._database = database
-        self._exports_dir = data_dir / "exports"
+        self._exports_dir = tmf_dir
         self._exports_dir.mkdir(parents=True, exist_ok=True)
 
     def create(self, request: TmfExportRequest) -> dict:

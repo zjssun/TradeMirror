@@ -38,4 +38,7 @@ def test_health_returns_engine_state(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"
     assert response.json()["database"] == "ready"
-    assert (tmp_path / "data" / "trademirror.db").exists()
+    assert (tmp_path / "data" / "database" / "trademirror.db").exists()
+    assert (tmp_path / "data" / "tmf").is_dir()
+    assert (tmp_path / "data" / "import-previews").is_dir()
+    assert (tmp_path / "data" / "cache").is_dir()
