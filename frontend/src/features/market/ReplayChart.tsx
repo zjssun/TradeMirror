@@ -37,7 +37,7 @@ export function formatPrice(value: number): string {
   return value.toFixed(2);
 }
 
-function candleIndexAtOrBefore(candles: MarketCandle[], value: string): number {
+export function candleIndexAtOrBefore(candles: MarketCandle[], value: string): number {
   const target = timestamp(value);
   let matched = -1;
   for (let index = 0; index < candles.length; index += 1) {

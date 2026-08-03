@@ -52,6 +52,7 @@ export function TradeReplayPage() {
   };
   const load = () => { if (symbol && range) loadReplay.mutate({ selectedSymbol: symbol, selectedRange: range, selectedTimeframe: timeframe, preRoll: preRollCandles, postRoll: postRollCandles }); };
   const last = Math.max(0, (replay?.candles.length ?? 1) - 1);
+  const hasCandles = Boolean(replay?.candles.length);
   const currentCandle = replay?.candles[cursor];
   const closedEvents = replay?.events.filter((event) => {
     const exitIndex = candleIndexAtOrBefore(replay.candles, event.close_time);
@@ -71,7 +72,7 @@ export function TradeReplayPage() {
         </Space>
         <Space align="center" size="middle" style={{ whiteSpace: "nowrap" }}>
           <Space size={8}><Typography.Text>{t("replay.timeframe")}</Typography.Text><Select value={timeframe} onChange={setTimeframe} style={{ width: 100 }} options={[{ value: "AUTO", label: t("replay.auto") }, ...["M1", "M5", "M15", "H1", "H4"].map((value) => ({ value, label: value }))]} /></Space>
-          <Space size={8}><Typography.Text>{t("replay.preRoll")}</Typography.Text><InputNumber min={0} max={500} value={preRollCandles} onChange={(value) => setPreRollCandles(value ?? 80)} style={{ width: 72 }} /></Space>
+          <Space size={8}><Typography.Text>{t("replay.preRoll")}</Typography.Text><InputNumber min={0} max={500} value={preRollCandles} onChange={(value) => setPreRollCandles(value ?? 20)} style={{ width: 72 }} /></Space>
           <Space size={8}><Typography.Text>{t("replay.postRoll")}</Typography.Text><InputNumber min={0} max={500} value={postRollCandles} onChange={(value) => setPostRollCandles(value ?? 20)} style={{ width: 72 }} /></Space>
         </Space>
       </Space>}
@@ -80,14 +81,14 @@ export function TradeReplayPage() {
     </Card>
     {replay && <Card title={`${replay.symbol} · ${replay.timeframe}`} extra={<Space size="large"><Statistic title={t("replay.realizedProfit")} value={realizedNetProfit} precision={2} valueStyle={{ color: realizedNetProfit >= 0 ? "#16a34a" : "#dc2626" }} prefix={realizedNetProfit >= 0 ? "+" : ""} /><Typography.Text type="secondary">{t("replay.closedCount", { closed: closedEvents.length, total: replay.selected_trade_count })} · {t("replay.preRollShown", { actual: replay.available_pre_roll_candles, requested: replay.pre_roll_candles })} · {t("replay.expanded", { from: formatTime(replay.candle_from), to: formatTime(replay.candle_to) })}</Typography.Text></Space>}>
       <ReplayChart candles={replay.candles} events={replay.events} cursor={cursor} animationDuration={Math.max(80, Math.min(500, 720 / speed))} onTradeSelect={setSelectedTrade} />
-      <Space wrap align="center" style={{ width: "100%", justifyContent: "space-between", marginTop: 18 }}>
+      {hasCandles && <><Space wrap align="center" style={{ width: "100%", justifyContent: "space-between", marginTop: 18 }}>
         <Space><Button onClick={() => { setPlaying(false); setCursor((value) => Math.max(initialCursor, value - 1)); }} disabled={cursor <= initialCursor}>{t("replay.back")}</Button><Button type="primary" onClick={() => setPlaying((value) => !value)} disabled={cursor >= last}>{playing ? t("replay.pause") : t("replay.play")}</Button><Button onClick={() => { setPlaying(false); setCursor((value) => Math.min(last, value + 1)); }} disabled={cursor >= last}>{t("replay.forward")}</Button><Segmented<1 | 2 | 5> value={speed} onChange={setSpeed} options={[{ value: 1, label: "1x" }, { value: 2, label: "2x" }, { value: 5, label: "5x" }]} /></Space>
         <Space><Statistic title={t("replay.progress")} value={`${cursor + 1} / ${replay.candles.length}`} /><Typography.Text>{currentCandle ? formatTime(currentCandle.time) : ""}</Typography.Text></Space>
       </Space>
       <div style={{ marginTop: 10 }}>
         <Slider aria-label={t("replay.seek")} min={initialCursor} max={last} step={1} value={cursor} disabled={initialCursor >= last} tooltip={{ formatter: (value) => value === undefined || !replay.candles[value] ? "" : `${formatTime(replay.candles[value].time)} · ${value + 1} / ${replay.candles.length}` }} onChange={(value) => { setPlaying(false); setCursor(value); }} />
         <Space style={{ width: "100%", justifyContent: "space-between" }}><Typography.Text type="secondary">{t("replay.seekStart")} · {formatTime(replay.candles[initialCursor].time)}</Typography.Text><Typography.Text type="secondary">{t("replay.seekEnd")} · {formatTime(replay.candles[last].time)}</Typography.Text></Space>
-      </div>
+      </div></>}
     </Card>}
     <Drawer open={Boolean(selectedTrade)} onClose={() => setSelectedTrade(null)} title={selectedTrade ? `${selectedTrade.symbol} · ${selectedTrade.ticket}` : ""} width={520}>
       {selectedTrade && <Descriptions bordered size="small" column={1} items={[

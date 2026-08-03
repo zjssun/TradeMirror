@@ -38,7 +38,7 @@ class ReplayQuery(BaseModel):
     symbol: str = Field(min_length=1, max_length=64)
     from_time: datetime = Field(alias="from")
     to_time: datetime = Field(alias="to")
-    pre_roll_candles: int = Field(default=80, ge=0, le=500)
+    pre_roll_candles: int = Field(default=20, ge=0, le=500)
     post_roll_candles: int = Field(default=20, ge=0, le=500)
     timeframe: CandleTimeframe | None = None
 

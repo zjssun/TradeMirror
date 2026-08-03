@@ -125,3 +125,47 @@ def test_replay_pre_roll_uses_earliest_overlapping_entry(tmp_path) -> None:
     assert replay.available_pre_roll_candles == 0
     assert service._market_service.queries[0].from_time == replay.candle_from
     database.dispose()
+
+
+def test_replay_defaults_are_consistent_in_schema_and_openapi(tmp_path) -> None:
+    assert ReplayQuery.model_fields["pre_roll_candles"].default == 20
+
+    with create_client(tmp_path) as client:
+        parameters = client.get("/openapi.json").json()["paths"]["/market/replay"]["get"]["parameters"]
+
+    pre_roll = next(parameter for parameter in parameters if parameter["name"] == "pre_roll_candles")
+    assert pre_roll["schema"]["default"] == 20
+
+
+def test_replay_auto_timeframe_accounts_for_expanded_window(tmp_path) -> None:
+    database = create_database_engine(tmp_path / "trades.db")
+    opened = datetime(2025, 1, 1, 10, tzinfo=UTC)
+    closed = opened + timedelta(days=10)
+    add_trade(database, 1, "EURUSD", opened, closed)
+    market_service = FakeMarketService()
+    service = TradeReplayService(database, market_service)
+
+    replay = service.load(ReplayQuery(symbol="EURUSD", **{"from": opened, "to": closed}, pre_roll_candles=500, post_roll_candles=500))
+
+    assert replay.timeframe.value == "M5"
+    assert all(query.timeframe.value == "M5" for query in market_service.queries)
+    database.dispose()
+
+
+def test_replay_rejects_expanded_explicit_timeframe_before_loading_candles(tmp_path) -> None:
+    database = create_database_engine(tmp_path / "trades.db")
+    opened = datetime(2025, 1, 1, 10, tzinfo=UTC)
+    closed = opened + timedelta(days=10)
+    add_trade(database, 1, "EURUSD", opened, closed)
+    market_service = FakeMarketService()
+    service = TradeReplayService(database, market_service)
+
+    try:
+        service.load(ReplayQuery(symbol="EURUSD", timeframe="M1", **{"from": opened, "to": closed}, pre_roll_candles=500, post_roll_candles=500))
+    except ValueError as error:
+        assert "5000" in str(error)
+    else:
+        raise AssertionError("Expected an expanded replay limit error")
+
+    assert market_service.queries == []
+    database.dispose()

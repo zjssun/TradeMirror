@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from math import ceil
 
 from app.analyzer.candle_matcher import timeframe_duration
 from app.database.repositories.trade_repository import TradeRepository
@@ -9,7 +10,6 @@ from app.mt5.market_data_service import MarketDataService
 from app.schemas.market import CANDLES_PER_DAY, MAX_CANDLES_PER_REQUEST, CandleQuery, CandleTimeframe
 from app.schemas.replay import ReplayQuery, ReplayResponse, ReplaySymbolOption, ReplayTradeEvent
 
-_PRE_CANDLES = 80
 _POST_CANDLES = 20
 _TIMEFRAMES = (
     CandleTimeframe.M1,
@@ -51,13 +51,12 @@ class TradeReplayService:
         to_time = min(to_time, available_to)
 
         events = [self._event(trade) for trade in self._repository.list_for_replay(query.symbol, from_time, to_time)]
-        timeframe = query.timeframe or self._timeframe(from_time, to_time)
-        duration = timeframe_duration(timeframe)
-        pre_roll_anchor = min((self._utc(event.open_time) for event in events), default=from_time)
-        candle_from = pre_roll_anchor - duration * (query.pre_roll_candles + 1)
-        candle_to = to_time + duration * query.post_roll_candles
-        if events:
-            candle_to = max(candle_to, max(self._utc(event.close_time) for event in events))
+        if query.timeframe:
+            timeframe = query.timeframe
+            candle_from, candle_to = self._candle_window(events, from_time, to_time, timeframe, query)
+            self._validate_candle_count(timeframe, candle_from, candle_to)
+        else:
+            timeframe, candle_from, candle_to = self._timeframe(events, from_time, to_time, query)
 
         candles, cached_count, fetched_count = self._load_candles(query.symbol, timeframe, candle_from, candle_to)
         first_entry = min((self._utc(event.open_time) for event in events), default=None)
@@ -93,14 +92,42 @@ class TradeReplayService:
             available_pre_roll_candles=available_pre_roll_candles,
         )
 
-    def _timeframe(self, from_time: datetime, to_time: datetime) -> CandleTimeframe:
+    def _timeframe(
+        self,
+        events: list[ReplayTradeEvent],
+        from_time: datetime,
+        to_time: datetime,
+        query: ReplayQuery,
+    ) -> tuple[CandleTimeframe, datetime, datetime]:
         for timeframe in _TIMEFRAMES:
-            duration = timeframe_duration(timeframe)
-            expanded_seconds = (to_time - from_time).total_seconds() + (_PRE_CANDLES + _POST_CANDLES) * duration.total_seconds()
-            estimated = expanded_seconds / 86_400 * CANDLES_PER_DAY[timeframe]
-            if estimated <= MAX_CANDLES_PER_REQUEST:
-                return timeframe
+            candle_from, candle_to = self._candle_window(events, from_time, to_time, timeframe, query)
+            if self._estimated_candle_count(timeframe, candle_from, candle_to) <= MAX_CANDLES_PER_REQUEST:
+                return timeframe, candle_from, candle_to
         raise ValueError("所选范围过大，无法在回放中加载足够精细的 K 线，请缩短范围。")
+
+    def _candle_window(
+        self,
+        events: list[ReplayTradeEvent],
+        from_time: datetime,
+        to_time: datetime,
+        timeframe: CandleTimeframe,
+        query: ReplayQuery,
+    ) -> tuple[datetime, datetime]:
+        duration = timeframe_duration(timeframe)
+        pre_roll_anchor = min((self._utc(event.open_time) for event in events), default=from_time)
+        candle_from = pre_roll_anchor - duration * (query.pre_roll_candles + 1)
+        candle_to = to_time + duration * query.post_roll_candles
+        if events:
+            candle_to = max(candle_to, max(self._utc(event.close_time) for event in events))
+        return candle_from, candle_to
+
+    @staticmethod
+    def _estimated_candle_count(timeframe: CandleTimeframe, from_time: datetime, to_time: datetime) -> int:
+        return ceil((to_time - from_time).total_seconds() / 86_400 * CANDLES_PER_DAY[timeframe])
+
+    def _validate_candle_count(self, timeframe: CandleTimeframe, from_time: datetime, to_time: datetime) -> None:
+        if self._estimated_candle_count(timeframe, from_time, to_time) > MAX_CANDLES_PER_REQUEST:
+            raise ValueError("所选范围和 K 线周期会加载超过 5000 根 K 线，请缩短范围或选择更大周期。")
 
     def _load_candles(self, symbol: str, timeframe: CandleTimeframe, from_time: datetime, to_time: datetime):
         max_days = min(366, MAX_CANDLES_PER_REQUEST / CANDLES_PER_DAY[timeframe])
