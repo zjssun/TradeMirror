@@ -9,6 +9,7 @@ def build_prompt(manifest: dict, profile: dict, statistics: dict) -> str:
 - 导出是否脱敏：{'是' if manifest['options']['redact_source_identity'] else '否'}
 - 交易风格：{profile['style']}
 - 净盈亏：{statistics['net_profit']}
+{_replay_prompt(manifest)}
 
 请输出：
 1. 数据覆盖和局限性；
@@ -18,3 +19,7 @@ def build_prompt(manifest: dict, profile: dict, statistics: dict) -> str:
 
 K线及 MFE/MAE 来自 OHLC 区间近似；没有上下文的交易不得被推断为不存在或失败。
 """
+
+
+def _replay_prompt(manifest: dict) -> str:
+    return "- 本归档包含 replay.json：使用其中的已解析周期、回放范围和播放位置分析历史回放。" if manifest.get("export_kind") == "trade_replay" else ""

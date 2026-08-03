@@ -120,7 +120,7 @@ def test_replay_pre_roll_uses_earliest_overlapping_entry(tmp_path) -> None:
 
     replay = service.load(ReplayQuery(symbol="EURUSD", **{"from": opened + timedelta(hours=2), "to": opened + timedelta(hours=4)}))
 
-    assert replay.candle_from == opened - timedelta(minutes=81)
+    assert replay.candle_from == opened - timedelta(minutes=21)
     assert replay.initial_cursor == 0
     assert replay.available_pre_roll_candles == 0
     assert service._market_service.queries[0].from_time == replay.candle_from

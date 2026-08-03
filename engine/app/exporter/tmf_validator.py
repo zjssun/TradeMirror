@@ -26,4 +26,12 @@ def validate_tmf(path: Path) -> dict:
         charts = [name for name in names if name.startswith("charts/") and name.endswith(".png")]
         if manifest["options"]["include_charts"] and len(charts) != manifest["trade_count"]:
             raise ValueError("TMF 图表数量与交易数量不一致。")
+        if manifest.get("export_kind") == "trade_replay":
+            if "replay.json" not in names:
+                raise ValueError("回放 TMF 缺少 replay.json。")
+            replay = json.loads(archive.read("replay.json"))
+            if not replay["candles"] or replay["initial_cursor"] > replay["cursor"] or replay["cursor"] >= len(replay["candles"]):
+                raise ValueError("回放 TMF 进度无效。")
+            if manifest["options"]["include_charts"] and "replay/replay.png" not in names:
+                raise ValueError("回放 TMF 缺少回放图表。")
     return {"passed": True, "file_count": len(names)}

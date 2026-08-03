@@ -1,3 +1,20 @@
+import type { MarketCandle } from "./market";
+
+export interface TmfReplaySnapshot {
+  symbol: string;
+  timeframe: "M1" | "M5" | "M15" | "M30" | "H1" | "H4" | "D1";
+  from: string;
+  to: string;
+  candle_from: string;
+  candle_to: string;
+  candles: MarketCandle[];
+  pre_roll_candles: number;
+  post_roll_candles: number;
+  available_pre_roll_candles: number;
+  initial_cursor: number;
+  cursor: number;
+}
+
 export interface TmfExportRequest {
   trade_ids?: number[];
   symbol?: string;
@@ -7,6 +24,7 @@ export interface TmfExportRequest {
   to_time?: string;
   include_charts: boolean;
   redact_source_identity: boolean;
+  replay?: TmfReplaySnapshot;
 }
 
 export interface TmfExportResponse {

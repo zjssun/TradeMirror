@@ -12,7 +12,7 @@ from sqlalchemy.engine import Engine
 from app.database.repositories.trade_context_repository import TradeContextRepository
 from app.database.repositories.trade_repository import TradeRepository
 from app.events.trade_event_generator import TradeEventGenerator
-from app.exporter.chart_renderer import render_chart
+from app.exporter.chart_renderer import render_chart, render_replay_chart
 from app.exporter.prompt_builder import build_prompt
 from app.exporter.statistics import calculate_statistics
 from app.exporter.tmf_validator import validate_tmf
@@ -31,7 +31,12 @@ class TmfExportService:
         self._exports_dir.mkdir(parents=True, exist_ok=True)
 
     def create(self, request: TmfExportRequest) -> dict:
-        trades = TradeRepository(self._database).get_for_export(
+        repository = TradeRepository(self._database)
+        if request.replay:
+            expected_ids = [trade.id for trade in repository.list_for_replay(request.replay.symbol, request.replay.from_time, request.replay.to_time)]
+            if request.trade_ids != expected_ids:
+                raise ValueError("当前回放交易已变化，请重新加载回放后再导出。")
+        trades = repository.get_for_export(
             request.trade_ids, request.symbol, request.direction, request.from_time, request.to_time, request.source
         )
         if not trades:
@@ -56,6 +61,8 @@ class TmfExportService:
             "statistics.json": self._json(statistics),
             "profile.json": self._json(profile),
         }
+        if request.replay:
+            files["replay.json"] = self._json(self._replay_data(request))
         sources = sorted({trade.source for trade in trades})
         account_ids = sorted({trade.source_account_id for trade in trades if trade.source_account_id})
         provisional_manifest = {
@@ -66,12 +73,15 @@ class TmfExportService:
             "sources": sources,
             "account": None if request.redact_source_identity else account_ids[0] if len(account_ids) == 1 else account_ids,
             "symbols": sorted({trade.symbol for trade in trades}),
+            "export_kind": "trade_replay" if request.replay else "trade_collection",
             "options": options,
         }
         files["prompt.md"] = build_prompt(provisional_manifest, profile, statistics).encode()
         if request.include_charts:
             for trade, context in zip(trade_data, context_data):
                 files[f"charts/trade-{trade['id']}.png"] = render_chart(trade, context["context"])
+            if request.replay:
+                files["replay/replay.png"] = render_replay_chart(request.replay, events)
         manifest = {**provisional_manifest, "files": [{"path": name, "sha256": hashlib.sha256(content).hexdigest()} for name, content in sorted(files.items())]}
         files["manifest.json"] = self._json(manifest)
         files["validation.json"] = self._json({"passed": True, "validated_at": datetime.now(UTC).isoformat()})
@@ -90,8 +100,8 @@ class TmfExportService:
         return path if path.is_file() else None
 
     def _narrative(self, request: TmfExportRequest, trades: list) -> object:
-        from_time = request.from_time or min(trade.open_time for trade in trades)
-        to_time = request.to_time or max(trade.close_time for trade in trades)
+        from_time = request.replay.from_time if request.replay else request.from_time or min(trade.open_time for trade in trades)
+        to_time = request.replay.to_time if request.replay else request.to_time or max(trade.close_time for trade in trades)
         from_time = from_time.replace(tzinfo=UTC) if from_time.tzinfo is None else from_time.astimezone(UTC)
         to_time = to_time.replace(tzinfo=UTC) if to_time.tzinfo is None else to_time.astimezone(UTC)
         payload = TradingNarrativeRequest(
@@ -105,6 +115,30 @@ class TmfExportService:
             self._database,
             MarketDataService(Mt5Client(), self._database),
         ).generate(payload, trades)
+
+    @staticmethod
+    def _replay_data(request: TmfExportRequest) -> dict:
+        replay = request.replay
+        assert replay is not None
+        return {
+            "schema_version": "1.0",
+            "selection_semantics": "trade_lifecycle_overlaps_selected_range",
+            "symbol": replay.symbol,
+            "timeframe": replay.timeframe,
+            "from": replay.from_time,
+            "to": replay.to_time,
+            "candle_from": replay.candle_from,
+            "candle_to": replay.candle_to,
+            "candles": [candle.model_dump(mode="json") for candle in replay.candles],
+            "trade_ids": request.trade_ids,
+            "pre_roll_candles": replay.pre_roll_candles,
+            "post_roll_candles": replay.post_roll_candles,
+            "available_pre_roll_candles": replay.available_pre_roll_candles,
+            "initial_cursor": replay.initial_cursor,
+            "cursor": replay.cursor,
+            "current_candle_time": replay.candles[replay.cursor].time,
+            "visible_candle_count": replay.cursor + 1,
+        }
 
     @staticmethod
     def _json(value) -> bytes:
