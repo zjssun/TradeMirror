@@ -7,10 +7,13 @@ from app.schemas.market import CandleTimeframe, MarketCandle
 
 
 _TIMEFRAME_DURATIONS = {
+    CandleTimeframe.M1: timedelta(minutes=1),
     CandleTimeframe.M5: timedelta(minutes=5),
     CandleTimeframe.M15: timedelta(minutes=15),
+    CandleTimeframe.M30: timedelta(minutes=30),
     CandleTimeframe.H1: timedelta(hours=1),
     CandleTimeframe.H4: timedelta(hours=4),
+    CandleTimeframe.D1: timedelta(days=1),
 }
 
 

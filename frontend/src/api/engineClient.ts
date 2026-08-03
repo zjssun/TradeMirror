@@ -8,6 +8,7 @@ import type { CandleResponse, CandleTimeframe } from "../types/market";
 import type { Mt5StatusResponse, SymbolListResponse } from "../types/mt5";
 import type { ImportPreview, ImportResult } from "../types/importer";
 import type { TradeDateRange, TradeListResponse, TradeSource } from "../types/trade";
+import type { ReplayResponse, ReplaySymbolOption } from "../types/replay";
 import type { DataSourceStatus, DataSourceSync, Mt5HistorySyncRequest, Mt5HistorySyncResponse } from "../types/datasource";
 import type { TradingNarrative, TradingNarrativeFilters } from "../types/narrative";
 
@@ -55,6 +56,16 @@ export function getMt5Symbols(query: string): Promise<SymbolListResponse> {
   const params = new URLSearchParams({ visible_only: "true", limit: "300" });
   if (query.trim()) params.set("query", query.trim());
   return engineFetch<SymbolListResponse>(`/mt5/symbols?${params}`);
+}
+
+export function getReplaySymbols(): Promise<ReplaySymbolOption[]> {
+  return engineFetch<ReplaySymbolOption[]>("/market/replay/symbols");
+}
+
+export function getTradeReplay(symbol: string, from: string, to: string, options: { timeframe?: CandleTimeframe; preRollCandles: number; postRollCandles: number }): Promise<ReplayResponse> {
+  const params = new URLSearchParams({ symbol, from, to, pre_roll_candles: String(options.preRollCandles), post_roll_candles: String(options.postRollCandles) });
+  if (options.timeframe) params.set("timeframe", options.timeframe);
+  return engineFetch<ReplayResponse>(`/market/replay?${params}`);
 }
 
 export function getMarketCandles(

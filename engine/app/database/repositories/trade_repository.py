@@ -88,6 +88,38 @@ class TradeRepository:
             items = session.scalars(statement.order_by(Trade.close_time.desc()).offset((page - 1) * page_size).limit(page_size)).all()
             return items, total
 
+    def replay_symbols(self):
+        with Session(self._database) as session:
+            return session.execute(
+                select(
+                    Trade.symbol,
+                    func.min(Trade.open_time),
+                    func.max(Trade.close_time),
+                    func.count(Trade.id),
+                )
+                .group_by(Trade.symbol)
+                .order_by(Trade.symbol)
+            ).all()
+
+    def replay_span(self, symbol: str):
+        with Session(self._database) as session:
+            return session.execute(
+                select(func.min(Trade.open_time), func.max(Trade.close_time))
+                .where(Trade.symbol == symbol)
+            ).one()
+
+    def list_for_replay(self, symbol: str, from_time: datetime, to_time: datetime) -> list[Trade]:
+        with Session(self._database) as session:
+            return session.scalars(
+                select(Trade)
+                .where(
+                    Trade.symbol == symbol,
+                    Trade.open_time <= to_time,
+                    Trade.close_time >= from_time,
+                )
+                .order_by(Trade.open_time, Trade.close_time, Trade.id)
+            ).all()
+
     def date_range(self):
         with Session(self._database) as session:
             return session.execute(select(func.min(Trade.close_time), func.max(Trade.close_time))).one()

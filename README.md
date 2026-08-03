@@ -31,6 +31,13 @@ Download the latest `TradeMirror_Portable_v*.zip` from [GitHub Releases](https:/
 
 ---
 
+## 更新历史 / Update History
+
+- **2026-08 — 交易复盘播放器 / Trade Replay Player**：新增按时间顺序播放历史 K 线的复盘页面，支持周期与前后市场窗口设置、播放控制、进度跳转、交易标记及动态已实现净收益。  
+  Added chronological historical-candle playback with configurable timeframe and market windows, playback controls, seeking, trade markers, and dynamic realized net profit.
+
+---
+
 ## 中文
 
 ### TradeMirror 是什么？
@@ -54,11 +61,19 @@ TradeMirror 是一款面向交易复盘的本地桌面软件。它将已平仓�
 | CSV 导入 | 预览文件编码、分隔符和样例数据，映射字段后再确认导入。 |
 | 交易记录管理 | 按品种、方向、来源和时间筛选；支持单笔或批量删除。 |
 | 单笔行情回放 | 将开仓、平仓、止损和止盈标注到 UTC+0 K 线图中，并以方向感知的箭头和连线展示交易过程。 |
+| 交易复盘播放器 | 按单一品种和日期范围逐根播放历史 K 线；可设置周期和前后市场窗口、拖动进度条跳转，查看交易标记与随平仓动态变化的已实现净收益。 |
 | 批量交易复盘 | 对选中的交易生成分析结果，并展示市场环境、执行表现和数据质量。 |
 | 交易过程叙事 | 在指定时间范围内，将交易序列与市场 K 线阶段组织为连续的交易过程文本。 |
 | TMF 导出 | 生成本地交易材料文件，可选择是否包含图表以及是否脱敏数据来源身份。 |
 
 ### 界面预览 / Screenshots
+
+#### 交易复盘播放器 / Trade Replay Player
+
+![交易复盘播放器 / Trade Replay Player](md_img/TradeReplay.png)
+
+选择单一品种与日期范围后，可设置 K 线周期以及交易前/后市场窗口；历史 K 线会按时间顺序播放，也可通过进度条直接跳转。交易开平仓标记、连接线与已实现净收益会随播放位置同步更新。
+Select one symbol and a date range, configure the candle timeframe and pre/post market windows, then play candles chronologically or seek directly with the progress bar. Trade markers, paths, and realized net profit update with the replay position.
 
 #### 交易过程叙事 / Trading Narrative
 
@@ -87,8 +102,9 @@ Exported TMF files can be uploaded to AI for trading analysis. It filters trades
 2. **导入交易历史**：在「数据源」同步 MT5 已平仓交易，选择时间范围或全部历史。重复同步会去重。无法使用 MT5 时，上传 CSV、确认字段映射与预览数据后导入。
 3. **浏览与清理交易**：在「交易记录」按品种、方向、来源和日期筛选；可单笔或批量删除。
 4. **复盘交易过程**：从交易记录打开单笔复盘，点击「生成分析」或「重新分析」。系统读取所需历史 K 线并生成 UTC+0 行情回放；开仓和平仓箭头落在对应或此前最近的一根 K 线上。
-5. **生成时间范围叙事**：在「交易过程叙事」中选择有交易数据的日期范围和筛选条件，得到交易时间线与市场阶段组成的连续文本，可复制到你选择的 AI 工具。
-6. **导出 TMF 材料**：在「TMF 导出」设置筛选条件、图表与来源脱敏选项，生成后保存到本地。整个导出过程都在本机完成。
+5. **播放交易过程**：打开「交易复盘播放器」，选择品种和日期范围，按需设置 K 线周期及前置/后置 K 线。加载后可先观察入场前行情，再播放、单步或拖动进度条定位；已实现净收益会在平仓 K 线出现时动态更新。
+6. **生成时间范围叙事**：在「交易过程叙事」中选择有交易数据的日期范围和筛选条件，得到交易时间线与市场阶段组成的连续文本，可复制到你选择的 AI 工具。
+7. **导出 TMF 材料**：在「TMF 导出」设置筛选条件、图表与来源脱敏选项，生成后保存到本地。整个导出过程都在本机完成。
 
 ### 运行与开发
 
@@ -176,6 +192,7 @@ It is designed for **historical-data organization, review, and analysis**. It is
 | CSV import | Inspect encoding, delimiter, sample rows, and field mappings before confirming an import. |
 | Trade management | Filter by symbol, direction, source, and date; delete individual trades or selected batches. |
 | Per-trade market replay | Annotate UTC+0 candles with entry, exit, stop-loss, and take-profit markers, using direction-aware arrows and a trade line. |
+| Trade Replay Player | Play historical candles for one symbol and a selected date range; configure timeframe and pre/post market windows, seek with a progress bar, and review trade markers with dynamically realized net profit. |
 | Batch trade review | Analyze selected trades and inspect market context, execution metrics, and data quality. |
 | Trading narrative | Turn a selected period's trades and candle phases into a chronological narrative of the trading process. |
 | TMF export | Create local trade-material files, optionally including charts and source-identity redaction. |
@@ -186,8 +203,9 @@ It is designed for **historical-data organization, review, and analysis**. It is
 2. **Bring in trade history**: use **Sync MT5 Closed Trades**, selecting a date range or all history. Repeated synchronization is deduplicated. If MT5 is unavailable, import a CSV after reviewing mappings and sample data.
 3. **Inspect and curate trades**: open **Trades** and filter by symbol, direction, source, or date; remove invalid records individually or in batches.
 4. **Review a trade**: open a trade's review panel, then select **Generate analysis** or **Reanalyze**. The app retrieves the required historical candles and creates a UTC+0 replay. Entry and exit arrows are placed on the matching candle or nearest preceding candle.
-5. **Generate a period narrative**: in **Trading Narrative**, select a date range containing trade data and optional filters. The result combines a trade timeline with market phases and can be copied into an AI tool of your choice.
-6. **Export TMF material**: in **TMF Export**, configure filters, chart inclusion, and source-identity redaction. Generate the export and save it locally; the export process remains local.
+5. **Replay a trading period**: open **Trade Replay Player**, select a symbol and date range, then optionally configure the timeframe and pre/post candles. Inspect the pre-entry market window, play or step through the candles, or seek with the progress bar; realized net profit updates when exit candles appear.
+6. **Generate a period narrative**: in **Trading Narrative**, select a date range containing trade data and optional filters. The result combines a trade timeline with market phases and can be copied into an AI tool of your choice.
+7. **Export TMF material**: in **TMF Export**, configure filters, chart inclusion, and source-identity redaction. Generate the export and save it locally; the export process remains local.
 
 ### Run and develop
 

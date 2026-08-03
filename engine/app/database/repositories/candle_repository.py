@@ -50,13 +50,19 @@ class CandleRepository:
     def upsert_candles(self, symbol_id: int, timeframe: str, candles: list[MarketCandle]) -> None:
         if not candles:
             return
-        values = [{"symbol_id": symbol_id, "timeframe": timeframe, **candle.model_dump()} for candle in candles]
-        statement = insert(CachedCandle).values(values).on_conflict_do_update(
-            index_elements=[CachedCandle.symbol_id, CachedCandle.timeframe, CachedCandle.time],
-            set_={column: getattr(insert(CachedCandle).excluded, column) for column in ["open", "high", "low", "close", "tick_volume", "spread", "real_volume"]},
-        )
-        with self._engine.begin() as connection:
-            connection.execute(statement)
+        columns_per_row = 9
+        max_rows = 900 // columns_per_row
+        for offset in range(0, len(candles), max_rows):
+            values = [
+                {"symbol_id": symbol_id, "timeframe": timeframe, **candle.model_dump()}
+                for candle in candles[offset:offset + max_rows]
+            ]
+            statement = insert(CachedCandle).values(values).on_conflict_do_update(
+                index_elements=[CachedCandle.symbol_id, CachedCandle.timeframe, CachedCandle.time],
+                set_={column: getattr(insert(CachedCandle).excluded, column) for column in ["open", "high", "low", "close", "tick_volume", "spread", "real_volume"]},
+            )
+            with self._engine.begin() as connection:
+                connection.execute(statement)
 
     @staticmethod
     def _to_schema(candle: CachedCandle) -> MarketCandle:
