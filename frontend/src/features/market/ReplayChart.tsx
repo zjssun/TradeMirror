@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Empty } from "antd";
-import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, LineSeries, LineStyle, type IChartApi, type SeriesMarker, type Time, type UTCTimestamp } from "lightweight-charts";
+import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, HistogramSeries, LineSeries, LineStyle, type IChartApi, type ISeriesApi, type SeriesMarker, type Time, type UTCTimestamp } from "lightweight-charts";
 
 import { useI18n } from "../../app/i18n";
 import type { MarketCandle } from "../../types/market";
@@ -8,6 +8,8 @@ import { TradeAnnotationPrimitive, formatTradeVolume, type TradeAnnotation } fro
 import type { ReplayDisplayTimezone } from "./replayTime";
 import { formatReplayChartTime } from "./replayTime";
 import type { ReplayTradeEvent } from "../../types/replay";
+import type { IndicatorPreferenceItem, IndicatorSeries } from "../../types/indicators";
+import { indicatorKey, indicatorLabel } from "./IndicatorPanel";
 
 interface Props {
   candles: MarketCandle[];
@@ -15,11 +17,16 @@ interface Props {
   cursor: number;
   animationDuration: number;
   displayTimezone: ReplayDisplayTimezone;
+  indicators?: IndicatorSeries[];
+  indicatorPreferences: IndicatorPreferenceItem[];
+  onIndicatorToggle: (indicator: IndicatorPreferenceItem) => void;
+  onChartRendered?: () => void;
   onTradeSelect: (event: ReplayTradeEvent) => void;
 }
 
 const BUY_COLORS = ["#16a34a", "#65a30d", "#0f766e", "#0891b2"];
 const SELL_COLORS = ["#dc2626", "#ea580c", "#c2410c", "#be123c"];
+const INDICATOR_COLORS = ["#2563eb", "#7c3aed", "#0891b2", "#0f766e", "#d97706", "#db2777"];
 type CandleData = { time: UTCTimestamp; open: number; high: number; low: number; close: number };
 type TradePath = { setData: (data: Array<{ time: UTCTimestamp; value: number }>) => void };
 
@@ -63,7 +70,7 @@ function colorAssignments(candles: MarketCandle[], events: ReplayTradeEvent[]): 
   return result;
 }
 
-export function ReplayChart({ candles, events, cursor, animationDuration, displayTimezone, onTradeSelect }: Props) {
+export function ReplayChart({ candles, events, cursor, animationDuration, displayTimezone, indicators = [], indicatorPreferences, onIndicatorToggle, onChartRendered, onTradeSelect }: Props) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -83,6 +90,34 @@ export function ReplayChart({ candles, events, cursor, animationDuration, displa
     const annotations = new TradeAnnotationPrimitive();
     series.attachPrimitive(annotations);
     const colors = colorAssignments(candles, events);
+    const indicatorSeries = new Map<string, ISeriesApi<"Line"> | ISeriesApi<"Histogram">>();
+    const indicatorPoints = (series: IndicatorSeries) => Array.isArray(series.series) ? { value: series.series } : series.series;
+    for (const [indicatorIndex, indicator] of indicators.entries()) {
+      const fields = indicatorPoints(indicator);
+      const paneIndex = indicator.name === "RSI" ? 1 : indicator.name === "MACD" ? 2 : indicator.name === "ATR" ? 3 : 0;
+      for (const field of Object.keys(fields)) {
+        const color = field === "upper" || field === "lower" ? "#94a3b8" : field === "middle" ? "#6366f1" : field === "signal" ? "#f59e0b" : field === "histogram" ? "#64748b" : indicator.name === "RSI" ? "#7c3aed" : indicator.name === "ATR" ? "#0f766e" : INDICATOR_COLORS[indicatorIndex % INDICATOR_COLORS.length];
+        const settings = { color, lineWidth: 2 as const, title: "", lastValueVisible: false, priceLineVisible: false };
+        const chartSeries = field === "histogram"
+          ? chart.addSeries(HistogramSeries, { ...settings, base: 0 }, paneIndex)
+          : chart.addSeries(LineSeries, settings, paneIndex);
+        indicatorSeries.set(`${indicator.id}:${field}`, chartSeries);
+        if (indicator.name === "RSI" && field === "value") {
+          [30, 50, 70].forEach((price) => chartSeries.createPriceLine({ price, color: "#cbd5e1", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false }));
+        }
+        if (indicator.name === "MACD" && field === "histogram") {
+          chartSeries.createPriceLine({ price: 0, color: "#94a3b8", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false });
+        }
+      }
+    }
+    const updateIndicators = (nextCursor: number) => {
+      for (const indicator of indicators) {
+        for (const [field, points] of Object.entries(indicatorPoints(indicator))) {
+          const chartSeries = indicatorSeries.get(`${indicator.id}:${field}`);
+          chartSeries?.setData(points.filter((point) => point.source_index <= nextCursor).map((point) => ({ time: timestamp(point.time), value: point.value })));
+        }
+      }
+    };
     const paths = new Map<number, TradePath>();
     const positions = new Map<number, { entryIndex: number; exitIndex: number; color: string; isBuy: boolean }>();
     for (const event of events) {
@@ -125,6 +160,7 @@ export function ReplayChart({ candles, events, cursor, animationDuration, displa
       const previousCursor = renderedCursorRef.current;
       if (!animate || nextCursor !== previousCursor + 1) {
         series.setData(candles.slice(0, nextCursor + 1).map(candleData));
+        updateIndicators(nextCursor);
         renderedCursorRef.current = nextCursor;
         updateDecorations(nextCursor);
         return;
@@ -137,7 +173,7 @@ export function ReplayChart({ candles, events, cursor, animationDuration, displa
         const eased = 1 - (1 - progress) ** 3;
         series.update({ time: target.time, open: target.open, high: target.open + (target.high - target.open) * eased, low: target.open + (target.low - target.open) * eased, close: target.open + (target.close - target.open) * eased });
         if (progress < 1) animationFrameRef.current = window.requestAnimationFrame(animateFrame);
-        else { animationFrameRef.current = null; renderedCursorRef.current = nextCursor; updateDecorations(nextCursor); }
+        else { animationFrameRef.current = null; updateIndicators(nextCursor); renderedCursorRef.current = nextCursor; updateDecorations(nextCursor); }
       };
       animationFrameRef.current = window.requestAnimationFrame(animateFrame);
     };
@@ -151,11 +187,17 @@ export function ReplayChart({ candles, events, cursor, animationDuration, displa
     updateRef.current = sync;
     sync(cursorRef.current, false);
     chart.timeScale().fitContent();
+    onChartRendered?.();
     return () => { cancelAnimation(); updateRef.current = null; chartRef.current = null; chart.remove(); };
-  }, [candles, events, onTradeSelect, t, displayTimezone]);
+  }, [candles, events, indicators, onChartRendered, onTradeSelect, t, displayTimezone]);
 
   useEffect(() => { updateRef.current?.(cursor, true); }, [cursor]);
 
   if (!candles.length) return <Empty description={t("market.noCandles")} />;
-  return <div ref={containerRef} style={{ width: "100%" }} />;
+  return <div style={{ position: "relative", width: "100%" }}>
+    <div ref={containerRef} style={{ width: "100%" }} />
+    <div style={{ position: "absolute", top: 10, left: 10, zIndex: 2, display: "flex", gap: 6, flexWrap: "wrap", maxWidth: "65%", pointerEvents: "none" }}>
+      {indicatorPreferences.map((indicator, index) => <button key={indicatorKey(indicator)} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onIndicatorToggle(indicator)} aria-label={t("indicator.legendToggle", { name: indicatorLabel(indicator) })} style={{ pointerEvents: "auto", display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid", borderColor: indicator.visible ? "#91caff" : "#434343", borderRadius: 4, padding: "2px 6px", cursor: "pointer", color: indicator.visible ? "#1677ff" : "#737373", background: indicator.visible ? "rgba(230, 244, 255, 0.92)" : "rgba(38, 38, 38, 0.9)", fontSize: 11 }}><span style={{ width: 14, borderTop: `2px solid ${INDICATOR_COLORS[index % INDICATOR_COLORS.length]}` }} />{indicatorLabel(indicator)}</button>)}
+    </div>
+  </div>;
 }

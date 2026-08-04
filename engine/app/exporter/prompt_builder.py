@@ -18,6 +18,8 @@ def build_prompt(manifest: dict, profile: dict, statistics: dict) -> str:
 4. 不确定项和需要补充的数据。
 
 K线及 MFE/MAE 来自 OHLC 区间近似；没有上下文的交易不得被推断为不存在或失败。
+
+如 manifest 中含有 indicator_engine，交易上下文中的技术指标为本地 Python Engine 使用已完整收盘的历史 K 线计算的快照，仅用于复盘，不是预测或交易信号。
 """
 
 

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.indicators.registry import resolve_parameters
 from app.schemas.market import CandleTimeframe, MarketCandle
 
 IndicatorName = Literal["SMA", "EMA", "BOLLINGER_BANDS", "RSI", "MACD", "ATR"]
@@ -22,13 +24,17 @@ class IndicatorCalculationRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_indicator_requests(self) -> "IndicatorCalculationRequest":
-        if len({(item.name, tuple(sorted(item.parameters.items()))) for item in self.indicators}) != len(self.indicators):
+        normalized = []
+        for item in self.indicators:
+            parameters = resolve_parameters(item.name, item.parameters)
+            normalized.append((item.name, tuple(sorted(parameters.items()))))
+        if len(set(normalized)) != len(normalized):
             raise ValueError("指标不能重复。")
         return self
 
 
 class IndicatorPoint(BaseModel):
-    time: object
+    time: datetime
     value: float
     source_index: int
 

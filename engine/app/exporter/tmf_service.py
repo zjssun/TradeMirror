@@ -66,7 +66,8 @@ class TmfExportService:
         sources = sorted({trade.source for trade in trades})
         account_ids = sorted({trade.source_account_id for trade in trades if trade.source_account_id})
         provisional_manifest = {
-            "format_version": "1.0",
+            "format_version": "1.1",
+            "indicator_engine": self._indicator_provenance(context_data),
             "created_at": datetime.now(UTC).isoformat(),
             "trade_count": len(trades),
             "source": sources[0] if len(sources) == 1 else None,
@@ -115,6 +116,15 @@ class TmfExportService:
             self._database,
             MarketDataService(Mt5Client(), self._database),
         ).generate(payload, trades)
+
+    @staticmethod
+    def _indicator_provenance(contexts: list[dict]) -> dict | None:
+        for item in contexts:
+            market_context = (item.get("context") or {}).get("market_context") or {}
+            provenance = market_context.get("indicator_provenance")
+            if provenance:
+                return provenance
+        return None
 
     @staticmethod
     def _replay_data(request: TmfExportRequest) -> dict:

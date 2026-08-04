@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
-from app.indicators.schemas import IndicatorName
+if TYPE_CHECKING:
+    from app.indicators.schemas import IndicatorName
+else:
+    IndicatorName = str
 
 
 @dataclass(frozen=True)

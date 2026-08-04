@@ -5,6 +5,7 @@ import type { Insights, InsightFilters } from "../types/insights";
 import type { TmfExportRequest, TmfExportResponse } from "../types/export";
 import type { EngineRuntime, HealthResponse } from "../types/engine";
 import type { CandleResponse, CandleTimeframe } from "../types/market";
+import type { IndicatorCalculationRequest, IndicatorCalculationResponse, IndicatorDefinitionsResponse, IndicatorPreferences } from "../types/indicators";
 import type { Mt5StatusResponse, SymbolListResponse } from "../types/mt5";
 import type { ImportPreview, ImportResult } from "../types/importer";
 import type { TradeDateRange, TradeListResponse, TradeSource } from "../types/trade";
@@ -66,6 +67,30 @@ export function getTradeReplay(symbol: string, from: string, to: string, options
   const params = new URLSearchParams({ symbol, from, to, pre_roll_candles: String(options.preRollCandles), post_roll_candles: String(options.postRollCandles) });
   if (options.timeframe) params.set("timeframe", options.timeframe);
   return engineFetch<ReplayResponse>(`/market/replay?${params}`);
+}
+
+export function getIndicatorDefinitions(): Promise<IndicatorDefinitionsResponse> {
+  return engineFetch<IndicatorDefinitionsResponse>("/indicators/definitions");
+}
+
+export function calculateIndicators(request: IndicatorCalculationRequest): Promise<IndicatorCalculationResponse> {
+  return engineFetch<IndicatorCalculationResponse>("/indicators/calculate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+}
+
+export function getIndicatorPreferences(): Promise<IndicatorPreferences> {
+  return engineFetch<IndicatorPreferences>("/preferences/indicators");
+}
+
+export function saveIndicatorPreferences(request: IndicatorPreferences): Promise<IndicatorPreferences> {
+  return engineFetch<IndicatorPreferences>("/preferences/indicators", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
 }
 
 export function getMarketCandles(

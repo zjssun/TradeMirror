@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import dayjs, { type Dayjs } from "dayjs";
 import { Alert, Button, Card, DatePicker, Descriptions, Drawer, Empty, InputNumber, Modal, Select, Segmented, Slider, Space, Spin, Statistic, Switch, Typography } from "antd";
 
-import { createTmfExport, getReplaySymbols, getTradeReplay } from "../../api/engineClient";
+import { calculateIndicators, createTmfExport, getIndicatorDefinitions, getIndicatorPreferences, getReplaySymbols, getTradeReplay, saveIndicatorPreferences } from "../../api/engineClient";
 import { useI18n } from "../../app/i18n";
 import type { ReplayResponse, ReplayTradeEvent } from "../../types/replay";
+import type { IndicatorPreferenceItem, IndicatorSeries } from "../../types/indicators";
 import { ReplayChart, candleIndexAtOrBefore } from "./ReplayChart";
+import { indicatorKey, IndicatorPanel, defaultIndicatorPreferences } from "./IndicatorPanel";
 import { formatReplayDateTime, readReplayDisplayTimezone, replayTimezoneLabel, REPLAY_DISPLAY_TIMEZONE_OPTIONS, REPLAY_DISPLAY_TIMEZONE_STORAGE_KEY, type ReplayDisplayTimezone } from "./replayTime";
 
 const { RangePicker } = DatePicker;
@@ -22,6 +24,8 @@ export function TradeReplayPage() {
   const localTimezoneLabel = t("replay.timezoneLocal");
   const formatDisplayTime = (value: string) => formatDisplayValue(value, displayTimezone, localTimezoneLabel);
   const symbols = useQuery({ queryKey: ["replay-symbols"], queryFn: getReplaySymbols });
+  const indicatorDefinitions = useQuery({ queryKey: ["indicator-definitions"], queryFn: getIndicatorDefinitions });
+  const indicatorPreferences = useQuery({ queryKey: ["indicator-preferences"], queryFn: getIndicatorPreferences });
   const [symbol, setSymbol] = useState<string>();
   const [range, setRange] = useState<[Dayjs, Dayjs]>();
   const [replay, setReplay] = useState<ReplayResponse | null>(null);
@@ -36,6 +40,11 @@ export function TradeReplayPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [includeCharts, setIncludeCharts] = useState(true);
   const [redactSourceIdentity, setRedactSourceIdentity] = useState(true);
+  const [indicatorRequests, setIndicatorRequests] = useState<IndicatorPreferenceItem[]>(defaultIndicatorPreferences());
+  const [indicatorModalOpen, setIndicatorModalOpen] = useState(false);
+  const indicatorScrollPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const [indicatorSeries, setIndicatorSeries] = useState<IndicatorSeries[]>([]);
+  const saveIndicators = useMutation({ mutationFn: (indicators: IndicatorPreferenceItem[]) => saveIndicatorPreferences({ indicators }) });
   const selectedSymbol = symbols.data?.find((item) => item.symbol === symbol);
   const loadReplay = useMutation({
     mutationFn: ({ selectedSymbol, selectedRange, selectedTimeframe, preRoll, postRoll }: { selectedSymbol: string; selectedRange: [Dayjs, Dayjs]; selectedTimeframe: "AUTO" | "M1" | "M5" | "M15" | "H1" | "H4"; preRoll: number; postRoll: number }) => getTradeReplay(selectedSymbol, selectedRange[0].startOf("day").toISOString(), selectedRange[1].endOf("day").toISOString(), { timeframe: selectedTimeframe === "AUTO" ? undefined : selectedTimeframe, preRollCandles: preRoll, postRollCandles: postRoll }),
@@ -58,7 +67,21 @@ export function TradeReplayPage() {
     onSuccess: () => setExportOpen(false),
   });
 
+  useEffect(() => {
+    if (indicatorPreferences.data) setIndicatorRequests(indicatorPreferences.data.indicators);
+  }, [indicatorPreferences.data]);
+
   useEffect(() => { localStorage.setItem(REPLAY_DISPLAY_TIMEZONE_STORAGE_KEY, displayTimezone); }, [displayTimezone]);
+
+  useEffect(() => {
+    const activeIndicators = indicatorRequests.filter((item) => item.visible);
+    if (!replay || !activeIndicators.length) { setIndicatorSeries([]); return; }
+    let active = true;
+    calculateIndicators({ symbol: replay.symbol, timeframe: replay.timeframe, candles: replay.candles, indicators: activeIndicators })
+      .then((result) => { if (active) setIndicatorSeries(result.indicators); })
+      .catch(() => { if (active) setIndicatorSeries([]); });
+    return () => { active = false; };
+  }, [replay, indicatorRequests]);
 
   useEffect(() => {
     if (!playing || !replay) return;
@@ -68,6 +91,28 @@ export function TradeReplayPage() {
     }), 900 / speed);
     return () => window.clearInterval(timer);
   }, [playing, replay, speed]);
+
+  const toggleIndicator = (item: IndicatorPreferenceItem) => {
+    indicatorScrollPositionRef.current = { x: window.scrollX, y: window.scrollY };
+    setIndicatorRequests((current) => {
+      const key = indicatorKey(item);
+      const next = current.map((candidate) => indicatorKey(candidate) === key ? { ...candidate, visible: !candidate.visible } : candidate);
+      saveIndicators.mutate(next);
+      return next;
+    });
+  };
+
+  const restoreIndicatorScroll = useCallback(() => {
+    const position = indicatorScrollPositionRef.current;
+    if (!position) return;
+    window.scrollTo({ left: position.x, top: position.y, behavior: "instant" });
+    window.requestAnimationFrame(() => window.scrollTo({ left: position.x, top: position.y, behavior: "instant" }));
+    window.setTimeout(() => { window.scrollTo({ left: position.x, top: position.y, behavior: "instant" }); indicatorScrollPositionRef.current = null; }, 80);
+  }, []);
+
+  useLayoutEffect(() => {
+    restoreIndicatorScroll();
+  }, [indicatorRequests, restoreIndicatorScroll]);
 
   const selectSymbol = (value: string) => {
     const option = symbols.data?.find((item) => item.symbol === value);
@@ -88,7 +133,6 @@ export function TradeReplayPage() {
 
   return <Space direction="vertical" size="large" style={{ width: "100%" }}>
     <Card title={t("replay.title")}>
-      <Typography.Paragraph type="secondary">{t("replay.description")}</Typography.Paragraph>
       {symbols.isPending ? <Spin /> : !symbols.data?.length ? <Empty description={t("replay.noTrades")} /> : <Space direction="vertical" size="small" style={{ width: "100%" }}>
         <Space align="center" size="middle" style={{ whiteSpace: "nowrap" }}>
           <Space size={8}><Typography.Text>{t("replay.symbol")}</Typography.Text><Select value={symbol} onChange={selectSymbol} placeholder={t("replay.selectSymbol")} style={{ width: 190 }} options={symbols.data.map((item) => ({ value: item.symbol, label: `${item.symbol} (${item.trade_count})` }))} /></Space>
@@ -105,8 +149,8 @@ export function TradeReplayPage() {
       {selectedSymbol && <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>{t("replay.available", { from: formatDisplayTime(selectedSymbol.available_from), to: formatDisplayTime(selectedSymbol.available_to) })}</Typography.Paragraph>}
       {loadReplay.error && <Alert type="error" showIcon message={(loadReplay.error as Error).message} />}
     </Card>
-    {replay && <Card title={`${replay.symbol} · ${replay.timeframe}`} extra={<Space size="large"><Button onClick={() => setExportOpen(true)} disabled={!hasCandles}>{t("replay.export")}</Button><Statistic title={t("replay.realizedProfit")} value={realizedNetProfit} precision={2} valueStyle={{ color: realizedNetProfit >= 0 ? "#16a34a" : "#dc2626" }} prefix={realizedNetProfit >= 0 ? "+" : ""} /><Typography.Text type="secondary">{t("replay.closedCount", { closed: closedEvents.length, total: replay.selected_trade_count })} · {t("replay.preRollShown", { actual: replay.available_pre_roll_candles, requested: replay.pre_roll_candles })} · {t("replay.expanded", { from: formatDisplayTime(replay.candle_from), to: formatDisplayTime(replay.candle_to) })}</Typography.Text></Space>}>
-      <ReplayChart candles={replay.candles} events={replay.events} cursor={cursor} animationDuration={Math.max(80, Math.min(500, 720 / speed))} displayTimezone={displayTimezone} onTradeSelect={setSelectedTrade} />
+    {replay && <Card title={`${replay.symbol} · ${replay.timeframe}`} extra={<Space size="large"><Button onClick={() => setIndicatorModalOpen(true)}>{t("indicator.open")}</Button><Button onClick={() => setExportOpen(true)} disabled={!hasCandles}>{t("replay.export")}</Button><Statistic title={t("replay.realizedProfit")} value={realizedNetProfit} precision={2} valueStyle={{ color: realizedNetProfit >= 0 ? "#16a34a" : "#dc2626" }} prefix={realizedNetProfit >= 0 ? "+" : ""} /><Typography.Text type="secondary">{t("replay.closedCount", { closed: closedEvents.length, total: replay.selected_trade_count })} · {t("replay.preRollShown", { actual: replay.available_pre_roll_candles, requested: replay.pre_roll_candles })} · {t("replay.expanded", { from: formatDisplayTime(replay.candle_from), to: formatDisplayTime(replay.candle_to) })}</Typography.Text></Space>}>
+      <ReplayChart candles={replay.candles} events={replay.events} cursor={cursor} animationDuration={Math.max(80, Math.min(500, 720 / speed))} displayTimezone={displayTimezone} indicators={indicatorSeries} indicatorPreferences={indicatorRequests} onIndicatorToggle={toggleIndicator} onChartRendered={restoreIndicatorScroll} onTradeSelect={setSelectedTrade} />
       {hasCandles && <><Space wrap align="center" style={{ width: "100%", justifyContent: "space-between", marginTop: 18 }}>
         <Space><Button onClick={() => { setPlaying(false); setCursor((value) => Math.max(initialCursor, value - 1)); }} disabled={cursor <= initialCursor}>{t("replay.back")}</Button><Button type="primary" onClick={() => setPlaying((value) => !value)} disabled={cursor >= last}>{playing ? t("replay.pause") : t("replay.play")}</Button><Button onClick={() => { setPlaying(false); setCursor((value) => Math.min(last, value + 1)); }} disabled={cursor >= last}>{t("replay.forward")}</Button><Segmented<1 | 2 | 5> value={speed} onChange={setSpeed} options={[{ value: 1, label: "1x" }, { value: 2, label: "2x" }, { value: 5, label: "5x" }]} /></Space>
         <Space><Statistic title={t("replay.progress")} value={`${cursor + 1} / ${replay.candles.length}`} /><Typography.Text>{currentCandle ? formatDisplayTime(currentCandle.time) : ""}</Typography.Text></Space>
@@ -116,6 +160,7 @@ export function TradeReplayPage() {
         <Space style={{ width: "100%", justifyContent: "space-between" }}><Typography.Text type="secondary">{t("replay.seekStart")} · {formatDisplayTime(replay.candles[initialCursor].time)}</Typography.Text><Typography.Text type="secondary">{t("replay.seekEnd")} · {formatDisplayTime(replay.candles[last].time)}</Typography.Text></Space>
       </div></>}
     </Card>}
+    <IndicatorPanel definitions={indicatorDefinitions.data?.indicators ?? []} open={indicatorModalOpen} value={indicatorRequests} onCancel={() => setIndicatorModalOpen(false)} onChange={(next) => { setIndicatorRequests(next); saveIndicators.mutate(next); }} />
     <Modal title={t("replay.exportTitle")} open={exportOpen} onCancel={() => setExportOpen(false)} onOk={() => exportReplay.mutate()} okText={t("replay.exportGenerate")} confirmLoading={exportReplay.isPending} okButtonProps={{ disabled: !hasCandles }}>
       {replay && <Space direction="vertical" style={{ width: "100%" }}><Typography.Paragraph>{t("replay.exportDescription")}</Typography.Paragraph><Descriptions size="small" column={1} items={[{ key: "range", label: t("replay.range"), children: `${formatDisplayTime(replay.from)} — ${formatDisplayTime(replay.to)}` }, { key: "cursor", label: t("replay.exportCursor"), children: currentCandle ? `${formatDisplayTime(currentCandle.time)} · ${cursor + 1} / ${replay.candles.length}` : "—" }, { key: "trades", label: t("replay.tradeCount", { count: replay.selected_trade_count }), children: t("replay.exportLifecycle") }]} /><Space><Typography.Text>{t("export.charts")}</Typography.Text><Switch checked={includeCharts} onChange={setIncludeCharts} /></Space><Typography.Text type="secondary">{t("export.chartsHint")}</Typography.Text><Space><Typography.Text>{t("export.redact")}</Typography.Text><Switch checked={redactSourceIdentity} onChange={setRedactSourceIdentity} /></Space>{exportReplay.error && <Alert type="error" showIcon message={(exportReplay.error as Error).message} />}</Space>}
     </Modal>

@@ -16,6 +16,7 @@ dependencies = [
   "python-multipart>=0.0.20,<1.0",
   "pydantic>=2.10,<3.0",
   "sqlalchemy>=2.0,<3.0",
+  "ta>=0.11,<0.12",
   "uvicorn[standard]>=0.34,<1.0",
 ]
 

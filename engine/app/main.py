@@ -45,8 +45,8 @@ def create_app(settings: Settings) -> FastAPI:
         CORSMiddleware,
         allow_origins=["http://localhost:1420", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"],
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
-        allow_headers=["X-TradeMirror-Token"],
+        allow_methods=["GET", "POST", "PUT"],
+        allow_headers=["X-TradeMirror-Token", "Content-Type"],
     )
 
     def require_launch_token(token: str | None) -> None:
