@@ -4,6 +4,9 @@ import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, LineSer
 
 import { useI18n } from "../../app/i18n";
 import type { MarketCandle } from "../../types/market";
+import { TradeAnnotationPrimitive, formatTradeVolume, type TradeAnnotation } from "./TradeAnnotationPrimitive";
+import type { ReplayDisplayTimezone } from "./replayTime";
+import { formatReplayChartTime } from "./replayTime";
 import type { ReplayTradeEvent } from "../../types/replay";
 
 interface Props {
@@ -11,6 +14,7 @@ interface Props {
   events: ReplayTradeEvent[];
   cursor: number;
   animationDuration: number;
+  displayTimezone: ReplayDisplayTimezone;
   onTradeSelect: (event: ReplayTradeEvent) => void;
 }
 
@@ -26,11 +30,6 @@ function timestamp(value: string): UTCTimestamp {
 
 function candleData(candle: MarketCandle): CandleData {
   return { time: timestamp(candle.time), open: candle.open, high: candle.high, low: candle.low, close: candle.close };
-}
-
-function formatUtcTime(value: Time): string {
-  const date = new Date(Number(value) * 1000);
-  return `${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 export function formatPrice(value: number): string {
@@ -64,7 +63,7 @@ function colorAssignments(candles: MarketCandle[], events: ReplayTradeEvent[]): 
   return result;
 }
 
-export function ReplayChart({ candles, events, cursor, animationDuration, onTradeSelect }: Props) {
+export function ReplayChart({ candles, events, cursor, animationDuration, displayTimezone, onTradeSelect }: Props) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -78,9 +77,11 @@ export function ReplayChart({ candles, events, cursor, animationDuration, onTrad
 
   useEffect(() => {
     if (!containerRef.current || !candles.length) return;
-    const chart = createChart(containerRef.current, { autoSize: true, height: 560, layout: { background: { type: ColorType.Solid, color: "#ffffff" }, textColor: "#334155" }, grid: { vertLines: { color: "#f1f5f9" }, horzLines: { color: "#f1f5f9" } }, timeScale: { timeVisible: true, secondsVisible: false, tickMarkFormatter: formatUtcTime }, localization: { timeFormatter: formatUtcTime } });
+    const chart = createChart(containerRef.current, { autoSize: true, height: 560, layout: { background: { type: ColorType.Solid, color: "#ffffff" }, textColor: "#334155" }, grid: { vertLines: { color: "#f1f5f9" }, horzLines: { color: "#f1f5f9" } }, timeScale: { timeVisible: true, secondsVisible: false, tickMarkFormatter: (value: Time) => formatReplayChartTime(value, displayTimezone) }, localization: { timeFormatter: (value: Time) => formatReplayChartTime(value, displayTimezone) } });
     chartRef.current = chart;
     const series = chart.addSeries(CandlestickSeries, { upColor: "#16a34a", downColor: "#dc2626", borderVisible: false, wickUpColor: "#16a34a", wickDownColor: "#dc2626" });
+    const annotations = new TradeAnnotationPrimitive();
+    series.attachPrimitive(annotations);
     const colors = colorAssignments(candles, events);
     const paths = new Map<number, TradePath>();
     const positions = new Map<number, { entryIndex: number; exitIndex: number; color: string; isBuy: boolean }>();
@@ -93,24 +94,27 @@ export function ReplayChart({ candles, events, cursor, animationDuration, onTrad
     const markersApi = createSeriesMarkers(series, []);
     const updateDecorations = (nextCursor: number) => {
       const markers: SeriesMarker<UTCTimestamp>[] = [];
+      const labelCards: TradeAnnotation[] = [];
       clickable = [];
       for (const event of events) {
         const position = positions.get(event.trade_id);
         if (!position) continue;
         if (position.entryIndex >= 0 && position.entryIndex <= nextCursor) {
           const time = timestamp(candles[position.entryIndex].time);
-          markers.push({ time, position: position.isBuy ? "atPriceBottom" : "atPriceTop", price: event.open_price, color: position.color, shape: position.isBuy ? "arrowUp" : "arrowDown", text: `${position.isBuy ? "↑ BUY" : "↓ SELL"} ${formatPrice(event.open_price)}`, size: 2 });
+          markers.push({ time, position: position.isBuy ? "atPriceBottom" : "atPriceTop", price: event.open_price, color: position.color, shape: position.isBuy ? "arrowUp" : "arrowDown", size: 2 });
+          labelCards.push({ id: `entry-${event.trade_id}`, time, price: event.open_price, anchor: position.isBuy ? "below" : "above", color: position.color, lines: [position.isBuy ? t("market.openBuy") : t("market.openSell"), `${formatPrice(event.open_price)} · ${formatTradeVolume(event.volume, t("market.lots"))}`] });
           clickable.push({ event, time, price: event.open_price });
         }
         if (position.exitIndex >= 0 && position.exitIndex <= nextCursor) {
           const time = timestamp(candles[position.exitIndex].time);
-          const profit = event.net_profit >= 0 ? `+${event.net_profit}` : String(event.net_profit);
-          markers.push({ time, position: position.isBuy ? "atPriceTop" : "atPriceBottom", price: event.close_price, color: position.color, shape: position.isBuy ? "arrowDown" : "arrowUp", text: `${t("replay.close")} ${formatPrice(event.close_price)} (${profit})`, size: 2 });
+          markers.push({ time, position: position.isBuy ? "atPriceTop" : "atPriceBottom", price: event.close_price, color: position.color, shape: position.isBuy ? "arrowDown" : "arrowUp", size: 2 });
+          labelCards.push({ id: `exit-${event.trade_id}`, time, price: event.close_price, anchor: position.isBuy ? "above" : "below", color: position.color, lines: [t("replay.close"), `${formatPrice(event.close_price)} · ${formatTradeVolume(event.volume, t("market.lots"))}`] });
           clickable.push({ event, time, price: event.close_price });
         }
         paths.get(event.trade_id)?.setData(position.entryIndex >= 0 && position.exitIndex > position.entryIndex && position.exitIndex <= nextCursor ? [{ time: timestamp(candles[position.entryIndex].time), value: event.open_price }, { time: timestamp(candles[position.exitIndex].time), value: event.close_price }] : []);
       }
       markersApi.setMarkers(markers);
+      annotations.setAnnotations(labelCards);
     };
     const cancelAnimation = () => {
       if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
@@ -148,7 +152,7 @@ export function ReplayChart({ candles, events, cursor, animationDuration, onTrad
     sync(cursorRef.current, false);
     chart.timeScale().fitContent();
     return () => { cancelAnimation(); updateRef.current = null; chartRef.current = null; chart.remove(); };
-  }, [candles, events, onTradeSelect, t]);
+  }, [candles, events, onTradeSelect, t, displayTimezone]);
 
   useEffect(() => { updateRef.current?.(cursor, true); }, [cursor]);
 

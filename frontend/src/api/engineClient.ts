@@ -150,6 +150,18 @@ export function analyzeTrade(tradeId: number): Promise<TradeContext> {
   return engineFetch<TradeContext>(`/trades/${tradeId}/analyze`, { method: "POST" });
 }
 
+export function analyzeAllTrades(): Promise<BatchAnalyzeResponse> {
+  return engineFetch<BatchAnalyzeResponse>("/analysis/trades", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ all: true }),
+  });
+}
+
+export function deleteAllTrades(): Promise<{ deleted_count: number }> {
+  return engineFetch<{ deleted_count: number }>("/trades/all", { method: "DELETE" });
+}
+
 export function analyzeTrades(tradeIds: number[]): Promise<BatchAnalyzeResponse> {
   return engineFetch<BatchAnalyzeResponse>("/analysis/trades", {
     method: "POST",

@@ -12,9 +12,14 @@ class BatchAnalyzeRequest(BaseModel):
     trade_ids: list[int] | None = None
     symbol: str | None = Field(default=None, min_length=1, max_length=64)
     direction: Literal["BUY", "SELL"] | None = None
+    all: bool = False
 
     @model_validator(mode="after")
     def validate_target(self) -> "BatchAnalyzeRequest":
+        if self.all:
+            if self.trade_ids is not None or self.symbol or self.direction:
+                raise ValueError("复盘全部不能同时指定交易或筛选条件。")
+            return self
         if self.trade_ids is not None:
             if not self.trade_ids:
                 raise ValueError("至少选择一笔交易。")

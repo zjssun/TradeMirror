@@ -18,6 +18,10 @@ def analyze(request: Request, trade_id: int):
 @batch_router.post("/trades", response_model=BatchAnalyzeResponse)
 def analyze_many(request: Request, payload: BatchAnalyzeRequest):
     try:
-        return TradeContextService(request.app.state.database).analyze_many(payload.trade_ids, payload.symbol, payload.direction)
+        return TradeContextService(request.app.state.database).analyze_many(
+            None if payload.all else payload.trade_ids,
+            None if payload.all else payload.symbol,
+            None if payload.all else payload.direction,
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error

@@ -50,6 +50,11 @@ def trade_date_range(request: Request) -> TradeDateRangeResponse:
     return TradeDateRangeResponse(from_time=from_time, to_time=to_time)
 
 
+@router.delete("/all", response_model=TradeDeleteResponse)
+def delete_all_trades(request: Request) -> TradeDeleteResponse:
+    return TradeDeleteResponse(deleted_count=TradeRepository(request.app.state.database).delete_all_trades())
+
+
 @router.delete("/{trade_id}", response_model=TradeDeleteResponse)
 def delete_trade(request: Request, trade_id: int) -> TradeDeleteResponse:
     return TradeDeleteResponse(deleted_count=TradeRepository(request.app.state.database).delete_trades([trade_id]))

@@ -116,9 +116,11 @@ class TradeReplayService:
         duration = timeframe_duration(timeframe)
         pre_roll_anchor = min((self._utc(event.open_time) for event in events), default=from_time)
         candle_from = pre_roll_anchor - duration * (query.pre_roll_candles + 1)
-        candle_to = to_time + duration * query.post_roll_candles
-        if events:
-            candle_to = max(candle_to, max(self._utc(event.close_time) for event in events))
+        post_roll_anchor = max(
+            to_time,
+            max((self._utc(event.close_time) for event in events), default=to_time),
+        )
+        candle_to = post_roll_anchor + duration * query.post_roll_candles
         return candle_from, candle_to
 
     @staticmethod

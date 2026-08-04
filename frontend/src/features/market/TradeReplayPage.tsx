@@ -8,16 +8,19 @@ import { createTmfExport, getReplaySymbols, getTradeReplay } from "../../api/eng
 import { useI18n } from "../../app/i18n";
 import type { ReplayResponse, ReplayTradeEvent } from "../../types/replay";
 import { ReplayChart, candleIndexAtOrBefore } from "./ReplayChart";
+import { formatReplayDateTime, readReplayDisplayTimezone, replayTimezoneLabel, REPLAY_DISPLAY_TIMEZONE_OPTIONS, REPLAY_DISPLAY_TIMEZONE_STORAGE_KEY, type ReplayDisplayTimezone } from "./replayTime";
 
 const { RangePicker } = DatePicker;
 
-function formatTime(value: string): string {
-  const date = new Date(value);
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")} UTC`;
+function formatDisplayValue(value: string, timezone: ReplayDisplayTimezone, localLabel: string): string {
+  return formatReplayDateTime(value, timezone, localLabel);
 }
 
 export function TradeReplayPage() {
   const { t } = useI18n();
+  const [displayTimezone, setDisplayTimezone] = useState<ReplayDisplayTimezone>(() => readReplayDisplayTimezone());
+  const localTimezoneLabel = t("replay.timezoneLocal");
+  const formatDisplayTime = (value: string) => formatDisplayValue(value, displayTimezone, localTimezoneLabel);
   const symbols = useQuery({ queryKey: ["replay-symbols"], queryFn: getReplaySymbols });
   const [symbol, setSymbol] = useState<string>();
   const [range, setRange] = useState<[Dayjs, Dayjs]>();
@@ -55,6 +58,7 @@ export function TradeReplayPage() {
     onSuccess: () => setExportOpen(false),
   });
 
+  useEffect(() => { localStorage.setItem(REPLAY_DISPLAY_TIMEZONE_STORAGE_KEY, displayTimezone); }, [displayTimezone]);
 
   useEffect(() => {
     if (!playing || !replay) return;
@@ -93,30 +97,31 @@ export function TradeReplayPage() {
         </Space>
         <Space align="center" size="middle" style={{ whiteSpace: "nowrap" }}>
           <Space size={8}><Typography.Text>{t("replay.timeframe")}</Typography.Text><Select value={timeframe} onChange={setTimeframe} style={{ width: 100 }} options={[{ value: "AUTO", label: t("replay.auto") }, ...["M1", "M5", "M15", "H1", "H4"].map((value) => ({ value, label: value }))]} /></Space>
+          <Space size={8}><Typography.Text>{t("replay.displayTimezone")}</Typography.Text><Select value={displayTimezone} onChange={setDisplayTimezone} style={{ width: 130 }} options={REPLAY_DISPLAY_TIMEZONE_OPTIONS.map((value) => ({ value, label: replayTimezoneLabel(value, localTimezoneLabel) }))} /></Space>
           <Space size={8}><Typography.Text>{t("replay.preRoll")}</Typography.Text><InputNumber min={0} max={500} value={preRollCandles} onChange={(value) => setPreRollCandles(value ?? 20)} style={{ width: 72 }} /></Space>
           <Space size={8}><Typography.Text>{t("replay.postRoll")}</Typography.Text><InputNumber min={0} max={500} value={postRollCandles} onChange={(value) => setPostRollCandles(value ?? 20)} style={{ width: 72 }} /></Space>
         </Space>
       </Space>}
-      {selectedSymbol && <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>{t("replay.available", { from: formatTime(selectedSymbol.available_from), to: formatTime(selectedSymbol.available_to) })}</Typography.Paragraph>}
+      {selectedSymbol && <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>{t("replay.available", { from: formatDisplayTime(selectedSymbol.available_from), to: formatDisplayTime(selectedSymbol.available_to) })}</Typography.Paragraph>}
       {loadReplay.error && <Alert type="error" showIcon message={(loadReplay.error as Error).message} />}
     </Card>
-    {replay && <Card title={`${replay.symbol} · ${replay.timeframe}`} extra={<Space size="large"><Button onClick={() => setExportOpen(true)} disabled={!hasCandles}>{t("replay.export")}</Button><Statistic title={t("replay.realizedProfit")} value={realizedNetProfit} precision={2} valueStyle={{ color: realizedNetProfit >= 0 ? "#16a34a" : "#dc2626" }} prefix={realizedNetProfit >= 0 ? "+" : ""} /><Typography.Text type="secondary">{t("replay.closedCount", { closed: closedEvents.length, total: replay.selected_trade_count })} · {t("replay.preRollShown", { actual: replay.available_pre_roll_candles, requested: replay.pre_roll_candles })} · {t("replay.expanded", { from: formatTime(replay.candle_from), to: formatTime(replay.candle_to) })}</Typography.Text></Space>}>
-      <ReplayChart candles={replay.candles} events={replay.events} cursor={cursor} animationDuration={Math.max(80, Math.min(500, 720 / speed))} onTradeSelect={setSelectedTrade} />
+    {replay && <Card title={`${replay.symbol} · ${replay.timeframe}`} extra={<Space size="large"><Button onClick={() => setExportOpen(true)} disabled={!hasCandles}>{t("replay.export")}</Button><Statistic title={t("replay.realizedProfit")} value={realizedNetProfit} precision={2} valueStyle={{ color: realizedNetProfit >= 0 ? "#16a34a" : "#dc2626" }} prefix={realizedNetProfit >= 0 ? "+" : ""} /><Typography.Text type="secondary">{t("replay.closedCount", { closed: closedEvents.length, total: replay.selected_trade_count })} · {t("replay.preRollShown", { actual: replay.available_pre_roll_candles, requested: replay.pre_roll_candles })} · {t("replay.expanded", { from: formatDisplayTime(replay.candle_from), to: formatDisplayTime(replay.candle_to) })}</Typography.Text></Space>}>
+      <ReplayChart candles={replay.candles} events={replay.events} cursor={cursor} animationDuration={Math.max(80, Math.min(500, 720 / speed))} displayTimezone={displayTimezone} onTradeSelect={setSelectedTrade} />
       {hasCandles && <><Space wrap align="center" style={{ width: "100%", justifyContent: "space-between", marginTop: 18 }}>
         <Space><Button onClick={() => { setPlaying(false); setCursor((value) => Math.max(initialCursor, value - 1)); }} disabled={cursor <= initialCursor}>{t("replay.back")}</Button><Button type="primary" onClick={() => setPlaying((value) => !value)} disabled={cursor >= last}>{playing ? t("replay.pause") : t("replay.play")}</Button><Button onClick={() => { setPlaying(false); setCursor((value) => Math.min(last, value + 1)); }} disabled={cursor >= last}>{t("replay.forward")}</Button><Segmented<1 | 2 | 5> value={speed} onChange={setSpeed} options={[{ value: 1, label: "1x" }, { value: 2, label: "2x" }, { value: 5, label: "5x" }]} /></Space>
-        <Space><Statistic title={t("replay.progress")} value={`${cursor + 1} / ${replay.candles.length}`} /><Typography.Text>{currentCandle ? formatTime(currentCandle.time) : ""}</Typography.Text></Space>
+        <Space><Statistic title={t("replay.progress")} value={`${cursor + 1} / ${replay.candles.length}`} /><Typography.Text>{currentCandle ? formatDisplayTime(currentCandle.time) : ""}</Typography.Text></Space>
       </Space>
       <div style={{ marginTop: 10 }}>
-        <Slider aria-label={t("replay.seek")} min={initialCursor} max={last} step={1} value={cursor} disabled={initialCursor >= last} tooltip={{ formatter: (value) => value === undefined || !replay.candles[value] ? "" : `${formatTime(replay.candles[value].time)} · ${value + 1} / ${replay.candles.length}` }} onChange={(value) => { setPlaying(false); setCursor(value); }} />
-        <Space style={{ width: "100%", justifyContent: "space-between" }}><Typography.Text type="secondary">{t("replay.seekStart")} · {formatTime(replay.candles[initialCursor].time)}</Typography.Text><Typography.Text type="secondary">{t("replay.seekEnd")} · {formatTime(replay.candles[last].time)}</Typography.Text></Space>
+        <Slider aria-label={t("replay.seek")} min={initialCursor} max={last} step={1} value={cursor} disabled={initialCursor >= last} tooltip={{ formatter: (value) => value === undefined || !replay.candles[value] ? "" : `${formatDisplayTime(replay.candles[value].time)} · ${value + 1} / ${replay.candles.length}` }} onChange={(value) => { setPlaying(false); setCursor(value); }} />
+        <Space style={{ width: "100%", justifyContent: "space-between" }}><Typography.Text type="secondary">{t("replay.seekStart")} · {formatDisplayTime(replay.candles[initialCursor].time)}</Typography.Text><Typography.Text type="secondary">{t("replay.seekEnd")} · {formatDisplayTime(replay.candles[last].time)}</Typography.Text></Space>
       </div></>}
     </Card>}
     <Modal title={t("replay.exportTitle")} open={exportOpen} onCancel={() => setExportOpen(false)} onOk={() => exportReplay.mutate()} okText={t("replay.exportGenerate")} confirmLoading={exportReplay.isPending} okButtonProps={{ disabled: !hasCandles }}>
-      {replay && <Space direction="vertical" style={{ width: "100%" }}><Typography.Paragraph>{t("replay.exportDescription")}</Typography.Paragraph><Descriptions size="small" column={1} items={[{ key: "range", label: t("replay.range"), children: `${formatTime(replay.from)} — ${formatTime(replay.to)}` }, { key: "cursor", label: t("replay.exportCursor"), children: currentCandle ? `${formatTime(currentCandle.time)} · ${cursor + 1} / ${replay.candles.length}` : "—" }, { key: "trades", label: t("replay.tradeCount", { count: replay.selected_trade_count }), children: t("replay.exportLifecycle") }]} /><Space><Typography.Text>{t("export.charts")}</Typography.Text><Switch checked={includeCharts} onChange={setIncludeCharts} /></Space><Space><Typography.Text>{t("export.redact")}</Typography.Text><Switch checked={redactSourceIdentity} onChange={setRedactSourceIdentity} /></Space>{exportReplay.error && <Alert type="error" showIcon message={(exportReplay.error as Error).message} />}</Space>}
+      {replay && <Space direction="vertical" style={{ width: "100%" }}><Typography.Paragraph>{t("replay.exportDescription")}</Typography.Paragraph><Descriptions size="small" column={1} items={[{ key: "range", label: t("replay.range"), children: `${formatDisplayTime(replay.from)} — ${formatDisplayTime(replay.to)}` }, { key: "cursor", label: t("replay.exportCursor"), children: currentCandle ? `${formatDisplayTime(currentCandle.time)} · ${cursor + 1} / ${replay.candles.length}` : "—" }, { key: "trades", label: t("replay.tradeCount", { count: replay.selected_trade_count }), children: t("replay.exportLifecycle") }]} /><Space><Typography.Text>{t("export.charts")}</Typography.Text><Switch checked={includeCharts} onChange={setIncludeCharts} /></Space><Typography.Text type="secondary">{t("export.chartsHint")}</Typography.Text><Space><Typography.Text>{t("export.redact")}</Typography.Text><Switch checked={redactSourceIdentity} onChange={setRedactSourceIdentity} /></Space>{exportReplay.error && <Alert type="error" showIcon message={(exportReplay.error as Error).message} />}</Space>}
     </Modal>
     <Drawer open={Boolean(selectedTrade)} onClose={() => setSelectedTrade(null)} title={selectedTrade ? `${selectedTrade.symbol} · ${selectedTrade.ticket}` : ""} width={520}>
       {selectedTrade && <Descriptions bordered size="small" column={1} items={[
-        { key: "id", label: t("replay.tradeId"), children: selectedTrade.trade_id }, { key: "source", label: t("trades.source"), children: selectedTrade.source }, { key: "direction", label: t("trades.direction"), children: selectedTrade.direction }, { key: "open", label: t("trades.open"), children: `${formatTime(selectedTrade.open_time)} · ${selectedTrade.open_price}` }, { key: "close", label: t("trades.close"), children: `${formatTime(selectedTrade.close_time)} · ${selectedTrade.close_price}` }, { key: "volume", label: t("trades.volume"), children: selectedTrade.volume }, { key: "net", label: t("trades.netProfit"), children: selectedTrade.net_profit }, { key: "profit", label: t("replay.profit"), children: selectedTrade.profit }, { key: "cost", label: t("replay.costs"), children: `${selectedTrade.commission} / ${selectedTrade.swap}` }, { key: "holding", label: t("replay.holding"), children: `${duration} min` }, { key: "sl", label: t("market.stopLoss"), children: selectedTrade.stop_loss ?? "—" }, { key: "tp", label: t("market.takeProfit"), children: selectedTrade.take_profit ?? "—" }, { key: "reason", label: t("replay.closeReason"), children: selectedTrade.close_reason ?? "—" },
+        { key: "id", label: t("replay.tradeId"), children: selectedTrade.trade_id }, { key: "source", label: t("trades.source"), children: selectedTrade.source }, { key: "direction", label: t("trades.direction"), children: selectedTrade.direction }, { key: "open", label: t("trades.open"), children: `${formatDisplayTime(selectedTrade.open_time)} · ${selectedTrade.open_price}` }, { key: "close", label: t("trades.close"), children: `${formatDisplayTime(selectedTrade.close_time)} · ${selectedTrade.close_price}` }, { key: "volume", label: t("trades.volume"), children: selectedTrade.volume }, { key: "net", label: t("trades.netProfit"), children: selectedTrade.net_profit }, { key: "profit", label: t("replay.profit"), children: selectedTrade.profit }, { key: "cost", label: t("replay.costs"), children: `${selectedTrade.commission} / ${selectedTrade.swap}` }, { key: "holding", label: t("replay.holding"), children: `${duration} min` }, { key: "sl", label: t("market.stopLoss"), children: selectedTrade.stop_loss ?? "—" }, { key: "tp", label: t("market.takeProfit"), children: selectedTrade.take_profit ?? "—" }, { key: "reason", label: t("replay.closeReason"), children: selectedTrade.close_reason ?? "—" },
       ]} />}
     </Drawer>
   </Space>;

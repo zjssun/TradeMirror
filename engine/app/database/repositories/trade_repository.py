@@ -167,6 +167,13 @@ class TradeRepository:
                 statement = statement.where(Trade.close_time <= to_time)
             return session.scalars(statement.order_by(Trade.close_time.desc())).all()
 
+    def delete_all_trades(self) -> int:
+        with Session(self._database) as session:
+            session.execute(delete(TradeContextRecord))
+            result = session.execute(delete(Trade))
+            session.commit()
+            return result.rowcount
+
     def delete_trades(self, trade_ids: list[int]) -> int:
         with Session(self._database) as session:
             session.execute(delete(TradeContextRecord).where(TradeContextRecord.trade_id.in_(trade_ids)))

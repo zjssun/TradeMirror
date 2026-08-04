@@ -33,9 +33,13 @@ Download the latest `TradeMirror_Portable_v*.zip` from [GitHub Releases](https:/
 
 ## 更新历史 / Update History
 
-- **2026-08 — 交易复盘播放器 / Trade Replay Player**：新增按时间顺序播放历史 K 线的复盘页面，支持周期与前后市场窗口设置、播放控制、进度跳转、交易标记及动态已实现净收益。  
+- **2026-08-03 — 交易复盘播放器 / Trade Replay Player**：新增按时间顺序播放历史 K 线的复盘页面，支持周期与前后市场窗口设置、播放控制、进度跳转、交易标记及动态已实现净收益。  
   Added chronological historical-candle playback with configurable timeframe and market windows, playback controls, seeking, trade markers, and dynamic realized net profit.
-
+- **2026-08-04 — 优化整体和添加一些功能**：
+    - 用户可以选择图表中的时区(因为每个经纪商的时区可能不同)。
+    - 导出交易图表添加提示"需在交易记录中点击复盘才能生成交易图表"。
+    - 优化复盘图表中的交易标签样式。
+    - "交易记录"里添加"复盘全部"按钮和"删除全部"按钮。
 ---
 
 ## 中文
@@ -67,6 +71,18 @@ TradeMirror 是一款面向交易复盘的本地桌面软件。它将已平仓�
 | TMF 导出 | 生成本地交易材料文件，可选择是否包含图表以及是否脱敏数据来源身份。 |
 
 ### 界面预览 / Screenshots
+#### 交易概览 / Trading Overview
+
+![交易概览页面 / Trading Overview page](md_img/overview.png)
+
+在本地汇总交易数量、净利润、胜率、盈亏比、最长连亏和已完成复盘，并展示净利润曲线与品种分布。
+Summarizes local trade performance—including trade count, net profit, win rate, profit factor, losing streaks, completed reviews, equity curve, and symbol distribution.
+#### 交易记录 / Trade Records
+
+![交易记录页面 / Trade Records page](md_img/TradeRecords.png)
+
+在交易记录中筛选、选择或清理本地交易；打开单笔复盘后，可查看标注开平仓位置、价格和手数的行情图，并检查入场市场环境、执行指标与数据质量。
+Filter, select, or clean up local trades in Trade Records. Open an individual review to inspect the market chart with entry/exit position, price, and volume labels, alongside entry context, execution metrics, and data quality.
 
 #### 交易复盘播放器 / Trade Replay Player
 
@@ -81,13 +97,6 @@ Select one symbol and a date range, configure the candle timeframe and pre/post 
 
 在所选时间范围内，将交易与同一时期的 K 线市场阶段组合为连续、可复制的交易过程描述。
 Combines selected trades and candle-market phases into a chronological, copyable account of the trading process.
-
-#### 交易概览 / Trading Overview
-
-![交易概览页面 / Trading Overview page](md_img/overview.png)
-
-在本地汇总交易数量、净利润、胜率、盈亏比、最长连亏和已完成复盘，并展示净利润曲线与品种分布。
-Summarizes local trade performance—including trade count, net profit, win rate, profit factor, losing streaks, completed reviews, equity curve, and symbol distribution.
 
 #### TMF 导出 / TMF Export
 
@@ -111,7 +120,7 @@ Exported TMF files can be uploaded to AI for trading analysis. It filters trades
 #### 前置条件
 
 - Windows 10/11
-- Python 3.12 或更高版本
+- Python 3.12 或 3.13
 - Node.js（建议使用当前 LTS 版本）
 - Rust stable 工具链（用于 Tauri 桌面端）
 - MetaTrader 5 Windows 桌面终端（仅 MT5 同步与行情回放需要）
@@ -212,7 +221,7 @@ It is designed for **historical-data organization, review, and analysis**. It is
 #### Prerequisites
 
 - Windows 10/11
-- Python 3.12 or later
+- Python 3.12 or 3.13
 - Node.js (the current LTS release is recommended)
 - Rust stable toolchain (for the Tauri desktop host)
 - MetaTrader 5 for Windows (needed only for MT5 synchronization and market replay)
